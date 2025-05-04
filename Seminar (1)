@@ -1,0 +1,336 @@
+library(tidyverse)
+library(zoo)
+library(quantmod)
+library(mFilter)
+library(tseries)
+library(stats)
+library(ggplot2)
+library(gridExtra)
+
+getSymbols("PCECC96", src = "FRED")
+
+real_pce <- na.omit(PCECC96)
+real_pce <- real_pce["1946/2019"]
+
+log_real_pce <- log(real_pce)
+
+# 1
+
+par(mfrow = c(2, 2))
+
+time_index <- index(log_real_pce)
+
+library(RColorBrewer)
+
+color <- "#1B9E77"
+
+plot(time_index, log_real_pce, type = "l", 
+     main = "Figure a: Linear Trend Fit (Degree 1 Polynomial)",
+     xlab = "Time (Quarterly)", ylab = "Log of Real Personal Consumption Expenditures",
+     col = "black", lwd = 1.5)
+lines(time_index, predict(lm(log_real_pce ~ poly(time_index, 1))), 
+      col = color, lwd = 2)
+
+plot(time_index, log_real_pce, type = "l", 
+     main = "Figure b: Quadratic Trend Fit (Degree 2 Polynomial)",
+     xlab = "Time (Quarterly)", ylab = "Log of Real Personal Consumption Expenditures",
+     col = "black", lwd = 1.5)
+lines(time_index, predict(lm(log_real_pce ~ poly(time_index, 2))), 
+      col = color, lwd = 2)
+
+plot(time_index, log_real_pce, type = "l",
+     main = "Figure c: Cubic Trend Fit (Degree 3 Polynomial)",
+     xlab = "Time (Quarterly)", ylab = "Log of Real Personal Consumption Expenditures",
+     col = "black", lwd = 1.5)
+lines(time_index, predict(lm(log_real_pce ~ poly(time_index, 3))), 
+      col = color, lwd = 2)
+
+plot(time_index, log_real_pce, type = "l", 
+     main = "Figure d: Quartic Trend Fit (Degree 4 Polynomial)",
+     xlab = "Time (Quarterly)", ylab = "Log of Real Personal Consumption Expenditures",
+     col = "black", lwd = 1.5)
+lines(time_index, predict(lm(log_real_pce ~ poly(time_index, 4))), 
+      col = color, lwd = 2)
+
+# 2
+
+time_numeric <- as.numeric(index(log_real_pce))
+
+log_pce <- coredata(log_real_pce)
+
+residual_color <- "#D95F02"  
+
+model_lin <- lm(log_pce ~ poly(time_numeric, 1))
+resid_lin <- log_pce - predict(model_lin)
+plot(time_numeric, resid_lin, type = "l", col = residual_color, lwd = 2, lty = 2,
+     main = "Figure a: Residuals from Linear Trend (Degree 1)",
+     xlab = "Time (Quarterly)", ylab = "Residuals (Log Real PCE)")
+
+model_quad <- lm(log_pce ~ poly(time_numeric, 2))
+resid_quad <- log_pce - predict(model_quad)
+plot(time_numeric, resid_quad, type = "l", col = residual_color, lwd = 2, lty = 2,
+     main = "Figure b: Residuals from Quadratic Trend (Degree 2)",
+     xlab = "Time (Quarterly)", ylab = "Residuals (Log Real PCE)")
+
+model_cubic <- lm(log_pce ~ poly(time_numeric, 3))
+resid_cubic <- log_pce - predict(model_cubic)
+plot(time_numeric, resid_cubic, type = "l", col = residual_color, lwd = 2, lty = 2,
+     main = "Figure c: Residuals from Cubic Trend (Degree 3)",
+     xlab = "Time (Quarterly)", ylab = "Residuals (Log Real PCE)")
+
+model_quartic <- lm(log_pce ~ poly(time_numeric, 4))
+resid_quartic <- log_pce - predict(model_quartic)
+plot(time_numeric, resid_quartic, type = "l", col = residual_color, lwd = 2, lty = 2,
+     main = "Figure d: Residuals from Quartic Trend (Degree 4)",
+     xlab = "Time (Quarterly)", ylab = "Residuals (Log Real PCE)")
+
+# 3
+
+break_dotcom <- as.numeric(as.Date("2001-03-30"))  
+break_gfc <- as.numeric(as.Date("2007-06-30"))  
+
+break_dummy_dotcom <- ifelse(time_index_numeric > break_dotcom, time_index_numeric - break_dotcom, 0)
+break_dummy_gfc <- ifelse(time_index_numeric > break_gfc, time_index_numeric - break_gfc, 0)
+
+intercept_dummy_gfc <- ifelse(time_index_numeric > break_gfc, 1, 0)
+
+model_trend1 <- lm(log_pce_values ~ time_index_numeric + break_dummy_dotcom)
+
+model_trend2 <- lm(log_pce_values ~ time_index_numeric + break_dummy_dotcom + break_dummy_gfc)
+
+model_trend3 <- lm(log_pce_values ~ time_index_numeric + break_dummy_dotcom + break_dummy_gfc + intercept_dummy_gfc)
+
+fitted_trend1 <- predict(model_trend1)
+fitted_trend2 <- predict(model_trend2)
+fitted_trend3 <- predict(model_trend3)
+
+plot_data <- data.frame(
+  time = time_index_numeric,
+  log_real_pce = log_pce_values,
+  fitted_trend1 = fitted_trend1,
+  fitted_trend2 = fitted_trend2,
+  fitted_trend3 = fitted_trend3
+)
+
+trend_color <- "#1B9E77"       
+dotcom_color <- "#E7298A"      
+gfc_color <- "#7570B3"        
+
+p_brk1 <- ggplot(plot_data, aes(x = time, y = log_real_pce)) +
+  geom_line(color = "black", linewidth = 0.8) +
+  geom_line(aes(y = fitted_trend1), color = trend_color, linewidth = 1.2) +
+  geom_vline(xintercept = break_dotcom, color = dotcom_color, linetype = "dashed", linewidth = 0.8) +
+  ggtitle("Figure a: Broken Linear Trend After Dotcom Crash (2001 Q3)") +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+p_brk2 <- ggplot(plot_data, aes(x = time, y = log_real_pce)) +
+  geom_line(color = "black", linewidth = 0.8) +
+  geom_line(aes(y = fitted_trend2), color = trend_color, linewidth = 1.2) +
+  geom_vline(xintercept = break_dotcom, color = dotcom_color, linetype = "dashed", linewidth = 0.8) +
+  geom_vline(xintercept = break_gfc, color = gfc_color, linetype = "dashed", linewidth = 0.8) +
+  ggtitle("Figure b: Broken Linear Trends After Dotcom (2001 Q3) and GFC (2007 Q2)") +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+p_brk3 <- ggplot(plot_data, aes(x = time, y = log_real_pce)) +
+  geom_line(color = "black", linewidth = 0.8) +
+  geom_line(aes(y = fitted_trend3), color = trend_color, linewidth = 1.2) +
+  geom_vline(xintercept = break_dotcom, color = dotcom_color, linetype = "dashed", linewidth = 0.8) +
+  geom_vline(xintercept = break_gfc, color = gfc_color, linetype = "dashed", linewidth = 0.8) +
+  ggtitle("Figure c: Broken Trend with Dotcom, GFC, and Post-GFC Intercept Shift") +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+grid.arrange(p_brk1, p_brk2, p_brk3, ncol = 1)
+
+# 4
+
+plot_data$resid_bt1 <- plot_data$PCECC96 - plot_data$fitted_trend1
+plot_data$resid_bt2 <- plot_data$PCECC96 - plot_data$fitted_trend2
+plot_data$resid_bt3 <- plot_data$PCECC96 - plot_data$fitted_trend3
+
+color_dotcom <- "#E7298A"  
+color_gfc <- "#7570B3"    
+
+p_resid1 <- ggplot(plot_data, aes(x = time, y = resid_bt1)) +
+  geom_line(color = "black") +
+  geom_vline(xintercept = break_dotcom, color = color_dotcom, linetype = "dashed") +
+  ggtitle("Figure a: Residuals from Broken Trend (Slope Break After 2001 Q3)") +
+  xlab("Time (Quarterly)") + ylab("Residuals from Broken Trend")
+
+p_resid2 <- ggplot(plot_data, aes(x = time, y = resid_bt2)) +
+  geom_line(color = "black") +
+  geom_vline(xintercept = break_dotcom, color = color_dotcom, linetype = "dashed") +
+  geom_vline(xintercept = break_gfc, color = color_gfc, linetype = "dashed") +
+  ggtitle("Figure b: Residuals from Broken Trend (Slope Breaks After 2001 Q3 and 2007 Q2)") +
+  xlab("Time (Quarterly)") + ylab("Residuals from Broken Trend")
+
+p_resid3 <- ggplot(plot_data, aes(x = time, y = resid_bt3)) +
+  geom_line(color = "black") +
+  geom_vline(xintercept = break_dotcom, color = color_dotcom, linetype = "dashed") +
+  geom_vline(xintercept = break_gfc, color = color_gfc, linetype = "dashed") +
+  ggtitle("Figure c: Residuals from Broken Trend (Slope and Intercept Shift After 2007 Q2)") +
+  xlab("Time (Quarterly)") + ylab("Residuals from Broken Trend")
+
+grid.arrange(p_resid1, p_resid2, p_resid3, ncol = 1)
+
+# 5
+
+hp_filter_lambda1 <- hpfilter(log_real_pce, freq = 50000000, type = "lambda")  
+hp_filter_lambda2 <- hpfilter(log_real_pce, freq = 1000000, type = "lambda")   
+hp_filter_lambda3 <- hpfilter(log_real_pce, freq = 500000, type = "lambda")   
+hp_filter_lambda4 <- hpfilter(log_real_pce, freq = 50000, type = "lambda")     
+
+plot_data_hp <- data.frame(
+  time = as.Date(index(log_real_pce)),
+  log_real_pce = as.numeric(coredata(log_real_pce)),
+  trend_lambda1 = as.numeric(coredata(hp_filter_lambda1$trend)), 
+  trend_lambda2 = as.numeric(coredata(hp_filter_lambda2$trend)), 
+  trend_lambda3 = as.numeric(coredata(hp_filter_lambda3$trend)), 
+  trend_lambda4 = as.numeric(coredata(hp_filter_lambda4$trend))
+)
+
+hp_color <- "#1B9E77"  
+
+hp1 <- ggplot(plot_data_hp, aes(x = time)) +
+  geom_line(aes(y = log_real_pce), color = "black") +
+  geom_line(aes(y = trend_lambda1), color = hp_color) +
+  ggtitle(expression("Figure a: HP Filter (" * lambda == "50,000,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+hp2 <- ggplot(plot_data_hp, aes(x = time)) +
+  geom_line(aes(y = log_real_pce), color = "black") +
+  geom_line(aes(y = trend_lambda2), color = hp_color) +
+  ggtitle(expression("Figure b: HP Filter (" * lambda == "1,000,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+hp3 <- ggplot(plot_data_hp, aes(x = time)) +
+  geom_line(aes(y = log_real_pce), color = "black") +
+  geom_line(aes(y = trend_lambda3), color = hp_color) +
+  ggtitle(expression("Figure c: HP Filter (" * lambda == "500,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+hp4 <- ggplot(plot_data_hp, aes(x = time)) +
+  geom_line(aes(y = log_real_pce), color = "black") +
+  geom_line(aes(y = trend_lambda4), color = hp_color) +
+  ggtitle(expression("Figure d: HP Filter (" * lambda == "50,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Log Real PCE")
+
+grid.arrange(hp1, hp2, hp3, hp4, ncol = 2)
+
+# 6
+
+plot_data_hp$residuals_lambda1 <- plot_data_hp$log_real_pce - plot_data_hp$trend_lambda1
+plot_data_hp$residuals_lambda2 <- plot_data_hp$log_real_pce - plot_data_hp$trend_lambda2
+plot_data_hp$residuals_lambda3 <- plot_data_hp$log_real_pce - plot_data_hp$trend_lambda3
+plot_data_hp$residuals_lambda4 <- plot_data_hp$log_real_pce - plot_data_hp$trend_lambda4
+
+res_color <- "#377EB8"
+
+res_hp1 <- ggplot(plot_data_hp, aes(x = time, y = residuals_lambda1)) +
+  geom_line(color = res_color, linetype = "dotted") +
+  ggtitle(expression("Figure a: Deviations from HP Trend (" * lambda == "50,000,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Cyclical Component")
+
+res_hp2 <- ggplot(plot_data_hp, aes(x = time, y = residuals_lambda2)) +
+  geom_line(color = res_color, linetype = "dotted") +
+  ggtitle(expression("Figure b: Deviations from HP Trend (" * lambda == "1,000,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Cyclical Component")
+
+res_hp3 <- ggplot(plot_data_hp, aes(x = time, y = residuals_lambda3)) +
+  geom_line(color = res_color, linetype = "dotted") +
+  ggtitle(expression("Figure c: Deviations from HP Trend (" * lambda == "500,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Cyclical Component")
+
+res_hp4 <- ggplot(plot_data_hp, aes(x = time, y = residuals_lambda4)) +
+  geom_line(color = res_color, linetype = "dotted") +
+  ggtitle(expression("Figure d: Deviations from HP Trend (" * lambda == "50,000" * ")")) +
+  xlab("Time (Quarterly)") + ylab("Cyclical Component")
+
+grid.arrange(res_hp1, res_hp2, res_hp3, res_hp4, ncol = 2)
+
+# 7
+
+plot_data_hp$log_pce_diff <- c(NA, diff(plot_data_hp$log_real_pce))
+
+ggplot(plot_data_hp, aes(x = time, y = log_pce_diff)) +
+  geom_line(color = "#377EB8") +
+  geom_point(color = "#E69F00", size = 1.5) +
+  ggtitle("First Differences of Log Real PCE") +
+  xlab("Time (Quarterly)") + ylab("First Difference")
+
+# 8
+
+compute_periodogram <- function(time_series) {
+  spectrum_data <- spec.pgram(time_series, taper = 0, detrend = FALSE, fast = FALSE, plot = FALSE)
+  data.frame(frequency = 2 * pi * spectrum_data$freq, spectral_density = spectrum_data$spec / (2 * pi))
+}
+
+compute_cumulative_periodogram <- function(time_series) {
+  periodogram <- compute_periodogram(time_series)
+  periodogram$cumulative_spectral_density <- cumsum(periodogram$spectral_density) / sum(periodogram$spectral_density)
+  return(periodogram)
+}
+
+periodogram_log_pce <- compute_periodogram(plot_data_hp$log_real_pce)
+cumulative_periodogram_log_pce <- compute_cumulative_periodogram(plot_data_hp$log_real_pce)
+
+first_difference_log_pce <- diff(plot_data_hp$log_real_pce)
+
+periodogram_diff_log_pce <- compute_periodogram(first_difference_log_pce)
+cumulative_periodogram_diff_log_pce <- compute_cumulative_periodogram(first_difference_log_pce)
+
+spec_color <- "#1B9E77"  
+
+pg_raw <- ggplot(periodogram_log_pce, aes(x = frequency, y = spectral_density)) +
+  geom_line(color = spec_color) +
+  ggtitle("Figure a: Periodogram of Log Real PCE") +
+  xlab("Frequency") + ylab("Spectral Density")
+
+pg_cum_raw <- ggplot(cumulative_periodogram_log_pce, aes(x = frequency, y = cumulative_spectral_density)) +
+  geom_line(color = spec_color) +
+  ggtitle("Figure b: Cumulative Periodogram of Log Real PCE") +
+  xlab("Frequency") + ylab("Cumulative Spectral Density")
+
+pg_diff <- ggplot(periodogram_diff_log_pce, aes(x = frequency, y = spectral_density)) +
+  geom_line(color = spec_color) +
+  ggtitle("Figure c: Periodogram of First-Differenced Log Real PCE") +
+  xlab("Frequency") + ylab("Spectral Density")
+
+pg_cum_diff <- ggplot(cumulative_periodogram_diff_log_pce, aes(x = frequency, y = cumulative_spectral_density)) +
+  geom_line(color = spec_color) +
+  ggtitle("Figure d: Cumulative Periodogram of First-Differenced Log Real PCE") +
+  xlab("Frequency") + ylab("Cumulative Spectral Density")
+
+grid.arrange(pg_raw, pg_cum_raw, pg_diff, pg_cum_diff, ncol = 2)
+
+# 9
+
+spectral_analysis <- spec.pgram(first_difference_log_pce, plot = FALSE)
+
+spectral_density <- spectral_analysis$spec
+frequency_values <- spectral_analysis$freq
+
+selected_j_values <- c(10, 20, 30, 40, 50)
+
+spectral_results <- data.frame(
+  `j-th Frequency` = round(frequency_values[selected_j_values], 6)
+)
+
+total_spectral_sum <- sum(spectral_density)
+
+for (i in 1:length(selected_j_values)) {
+  freq_index <- selected_j_values[i]
+  
+  cum_spec_sum <- sum(spectral_density[1:freq_index])
+  
+  test_stat <- (47 / total_spectral_sum) * cum_spec_sum
+  
+  p_val <- 1 - pchisq(test_stat, df = freq_index)
+  
+  chi_sq_95 <- qchisq(0.95, df = freq_index) * (total_spectral_sum / 47)
+  
+  spectral_results$`Cumulative Sum`[i] <- round(cum_spec_sum, 4)
+  spectral_results$`Chi-Square 0.95 Quantile`[i] <- round(chi_sq_95, 4)
+  spectral_results$`p-Value`[i] <- round(p_val, 4)
+}
+
+print(spectral_results)
